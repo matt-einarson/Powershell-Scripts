@@ -1,0 +1,5 @@
+Getting users who haven't logged in in over 90 days
+$Date = (Get-Date).AddDays(-90)
+ 
+#Filtering All enabled users who haven't logged in.
+Get-ADUser -Filter {((Enabled -eq $false) -and (LastLogonDate -lt $date))} -Properties LastLogonDate -SearchBase "OU=Users,OU=Graveyard,DC=ad,DC=bdel,DC=COM" | select samaccountname, Name, Enabled, DistinguishedName, LastLogonDate | Sort-Object LastLogonDate | Export-Csv -Path c:\PSScripts\LastlogonDate-Over90Days.csv -Encoding ascii -NoTypeInformation
