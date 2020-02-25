@@ -1,0 +1,60 @@
+Import-Module ActiveDirectory
+
+#The master record we are reading from
+$master = Import-CSV -Path C:\Users\meadmin\Desktop\samplecsv.csv
+
+#Creating an Error Log
+$logpath = 'C:\Users\meadmin\Desktop\paylocity_sync_error_log.csv'
+Set-Content -path $logpath -Value "FullName,LastName,Email,ID,FailureCause"
+
+
+foreach ($user in $master){
+
+    $lastname = $user.'Last Name'
+    $email = $user.'Personal Email Address'
+    $fullname = $user.'First Last'
+    $nickname = $user.Nickname
+    $supervisor = $user.'Supervisor - Current'
+    $company = $user.'Company Name'
+    $id = $user.'Employee ID'
+
+    try{
+
+        $ad = Get-ADUser -Filter 'Surname -like $lastname' -Properties * -SearchBase "OU=Users,OU=US,DC=ad,DC=bdel,DC=com"
+        #count if more than one user is returned
+        $dupcount = @($ad).count
+
+        if($lastname -eq $ad.surname){
+        #This will set the id variable as the employee ID property for the user to use as a primary key in the future
+        Set-ADUser -Identity $ad -EmployeeID $id
+            
+        } elseif($dupcount -gt 1){
+            #If multiple results are a match for the last name we execute this
+            for($i = 0; $i -lt $dupcount; $i++){
+                if($fullname -eq $ad[$i].name){
+                    Set-ADUser -Identity $ad[1] -EmployeeID $id
+                    Write-Host "Duplicate lastname resolved"
+                    $set = 1
+                }
+            }
+            if($set -ne 1){
+                $newline = "{0},{1},{2},{3},{4}" -f $fullname,$lastname,$email,$id,'Duplicate lastname'
+                $newline | add-content -path $logpath
+                Write-Host "Cannot resolve duplicate last name"
+            }
+        } else {
+
+            #Log the users that could not be paired to an AD account (There possibly is no account for the employee, common with DC and manufacturing)
+            $newline = "{0},{1},{2},{3},{4}" -f $fullname,$lastname,$email,$id,'No mathcing lastname found' 
+            $newline | add-content -path $logpath
+            Write-Host "No Match found for this user"
+        }
+        
+    }
+    catch{
+        
+        $errormessage = $_.Exception.Message
+        Write-Host $errormessage
+    }
+
+}
